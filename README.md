@@ -1,7 +1,9 @@
 # API Rate Limiter
 
-[![CI](https://github.com/hamzamehmood46/api-rate-limiter-dotnet/actions/workflows/ci.yml/badge.svg)](https://github.com/hamzamehmood46/api-rate-limiter-dotnet/actions/workflows/ci.yml)
+[![Test and deploy](https://github.com/hamzamehmood46/api-rate-limiter-dotnet/actions/workflows/pages.yml/badge.svg)](https://github.com/hamzamehmood46/api-rate-limiter-dotnet/actions/workflows/pages.yml)
 
+**Live playground: [hamzamehmood46.github.io/api-rate-limiter-dotnet](https://hamzamehmood46.github.io/api-rate-limiter-dotnet/)**. Send requests as two clients, move a simulated clock, and see the real limiters decide. The page also runs a boundary attack that shows a fixed window letting twice the quota through (10 requests in 2 seconds against a limit of 5), where the sliding window allows 5 and the token bucket 6.
+ limiters are compiled straight into the browser app from [Limiters.cs](src/RateLimiting/Limiters.cs) (the middleware stays server-side).
 Two rate-limiting algorithms and an **ASP.NET Core middleware** for **.NET 8**, built from scratch: **token bucket** and **sliding-window log**, per-client, thread-safe, and communicating limits to clients through the standard `RateLimit-*` and `Retry-After` headers.
 
 (.NET ships a built-in `RateLimiter`; this project exists to show how the algorithms actually work and the concurrency problems underneath them.)
@@ -58,6 +60,10 @@ dotnet test
 - This limiter is **per process**. Behind several instances, use a shared store (a Redis Lua script is the usual approach) so the limit is global.
 - If clients sit behind a proxy, key on the forwarded client address (configure `ForwardedHeaders`) rather than the proxy's IP.
 - Call `Evict()` periodically (a hosted timer) to bound memory.
+
+## Deploying
+
+Every push to `main` runs the tests and, if they pass, publishes the playground to GitHub Pages (see `.github/workflows/pages.yml`).
 
 ## License
 

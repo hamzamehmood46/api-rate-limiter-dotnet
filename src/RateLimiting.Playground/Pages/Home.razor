@@ -1,0 +1,194 @@
+@page "/"
+@inject Lab L
+
+<PageTitle>Rate Limiter Playground: token bucket vs sliding window</PageTitle>
+
+@{
+    var ava = L.Totals["Ava"];
+    var ben = L.Totals["Ben"];
+}
+
+<header class="top">
+    <div>
+        <h1>Rate Limiter Playground</h1>
+        <p class="tag">Send requests, move the clock, and watch a token bucket and a sliding window decide who gets through, and why a fixed window can be gamed.</p>
+    </div>
+    <dl class="stats">
+        <div><dt>Ava allowed</dt><dd>@ava.Allowed</dd></div>
+        <div><dt>Ava denied</dt><dd>@ava.Denied</dd></div>
+        <div><dt>Ben allowed</dt><dd>@ben.Allowed</dd></div>
+        <div><dt>Ben denied</dt><dd>@ben.Denied</dd></div>
+        <div><dt>Tracked keys</dt><dd>@L.Limiter.TrackedKeys</dd></div>
+    </dl>
+</header>
+
+<main>
+    <section class="guide" aria-label="How to try it">
+        <h2>Try this (2 minutes)</h2>
+        <ol>
+            <li>With the <b>Token bucket</b> (capacity 5, refilling 1 a second), press <b>Ava sends 10</b>. The first five go through (the burst), the rest are denied with a <b>Retry-After</b>.</li>
+            <li>Press <b>+2 seconds</b>, then <b>Ava sends 1</b>. About two tokens came back, so two requests would be allowed. Ben has his own bucket and was never affected.</li>
+            <li>Switch to the <b>Sliding window</b> and repeat. It never allows more than the limit in <i>any</i> window, however you time it.</li>
+            <li>Press <b>Run the boundary attack</b>. A client sends a full quota just before a window ends and another just after: the fixed window lets <b>twice</b> the limit through in two seconds. The sliding window and the token bucket do not.</li>
+        </ol>
+    </section>
+
+    <div class="layout">
+        <div class="left">
+            <section class="card">
+                <div class="clockrow">
+                    <div>
+                        <div class="lab">Simulated clock</div>
+                        <div class="clock">@L.Clock</div>
+                    </div>
+                    @if (L.Last is { } last)
+                    {
+                        <span class="pill @(last.Allowed ? "up" : "down")">@L.LastClient: @(last.Allowed ? "200 allowed" : "429 denied")</span>
+                    }
+                </div>
+                @if (L.Last is { } l)
+                {
+                    <pre class="hdr">RateLimit-Limit: @l.Limit
+RateLimit-Remaining: @l.Remaining
+@(l.Allowed ? "" : "Retry-After: " + Math.Ceiling(l.RetryAfter.TotalSeconds))</pre>
+                }
+                <div class="actions wrap">
+                    <button class="btn primary" @onclick='() => Send("Ava", 1)'>Ava sends 1</button>
+                    <button class="btn" @onclick='() => Send("Ava", 10)'>Ava sends 10</button>
+                    <button class="btn primary" @onclick='() => Send("Ben", 1)'>Ben sends 1</button>
+                    <button class="btn" @onclick='() => Send("Ben", 10)'>Ben sends 10</button>
+                </div>
+                <div class="actions wrap">
+                    <button class="btn" @onclick="() => Go(1)">+1 second</button>
+                    <button class="btn" @onclick="() => Go(2)">+2 seconds</button>
+                    <button class="btn" @onclick="() => Go(10)">+10 seconds</button>
+                    <button class="btn" @onclick="() => Go(60)">+1 minute</button>
+                </div>
+                <div class="actions wrap">
+                    <button class="btn" @onclick="Evict">Evict idle keys</button>
+                    <button class="btn ghost" @onclick="Reset">Reset</button>
+                </div>
+                <p class="hint">Time only moves when you press a button. Evicting drops the state of clients who have been idle long enough to look brand new, which keeps memory bounded.</p>
+            </section>
+
+            <section class="card">
+                <h2>Boundary attack: three algorithms, same traffic</h2>
+                <p class="hint" style="margin-top:0">A client sends @L.Capacity requests one second before a window ends and @L.Capacity more one second after it.</p>
+                <button class="btn primary" @onclick="Attack">Run the boundary attack</button>
+                @if (_comparison is not null)
+                {
+                    <div class="tablewrap">
+                        <table>
+                            <thead><tr><th>Algorithm</th><th>Allowed in 2 s</th><th>Why</th></tr></thead>
+                            <tbody>
+                                @foreach (var c in _comparison)
+                                {
+                                    <tr>
+                                        <td>@c.Name</td>
+                                        <td><span class="chip @(c.Allowed > L.Capacity + 1 ? "s-deadlettered" : "s-succeeded")">@c.Allowed of @(2 * L.Capacity)</span></td>
+                                        <td class="detail">@c.Note</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+
+            <section class="card" aria-label="Request log">
+                <h2>Request log</h2>
+                @if (L.Rows.Count == 0)
+                {
+                    <p class="empty">No requests yet.</p>
+                }
+                else
+                {
+                    <div class="tablewrap">
+                        <table>
+                            <thead><tr><th>Time</th><th>Client</th><th>Result</th><th>Remaining</th><th>Retry-After</th></tr></thead>
+                            <tbody>
+                                @foreach (var r in L.Rows.Take(40))
+                                {
+                                    <tr>
+                                        <td class="mono">@r.Time</td>
+                                        <td>@r.Client</td>
+                                        <td><span class="chip @(r.Allowed ? "s-succeeded" : "s-deadlettered")">@(r.Allowed ? "200" : "429")</span></td>
+                                        <td class="mono">@r.Remaining / @r.Limit</td>
+                                        <td class="mono">@(r.Allowed ? "" : r.RetryAfter + " s")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        </div>
+
+        <div class="side">
+            <section class="card">
+                <h2>Algorithm</h2>
+                <div class="seg" role="group" aria-label="Algorithm">
+                    <button class="btn small @(L.Algorithm == Algo.TokenBucket ? "primary" : "")" @onclick="() => Pick(Algo.TokenBucket)">Token bucket</button>
+                    <button class="btn small @(L.Algorithm == Algo.SlidingWindow ? "primary" : "")" @onclick="() => Pick(Algo.SlidingWindow)">Sliding window</button>
+                    <button class="btn small @(L.Algorithm == Algo.FixedWindow ? "primary" : "")" @onclick="() => Pick(Algo.FixedWindow)">Fixed window</button>
+                </div>
+                <p class="hint">@Describe()</p>
+            </section>
+
+            <section class="card">
+                <h2>Settings</h2>
+                <label class="field">@(L.Algorithm == Algo.TokenBucket ? "Bucket capacity" : "Requests allowed"): @L.Capacity
+                    <input type="range" min="1" max="20" value="@L.Capacity" @onchange="e => Set(v => L.Capacity = v, e)" />
+                </label>
+                @if (L.Algorithm == Algo.TokenBucket)
+                {
+                    <label class="field">Refill: @L.RefillPerSecond.ToString("0.#") tokens a second
+                        <input type="range" min="1" max="20" value="@((int)(L.RefillPerSecond * 2))" @onchange="e => Set(v => L.RefillPerSecond = v / 2.0, e)" />
+                    </label>
+                }
+                else
+                {
+                    <label class="field">Window: @L.WindowSeconds seconds
+                        <input type="range" min="2" max="60" value="@L.WindowSeconds" @onchange="e => Set(v => L.WindowSeconds = v, e)" />
+                    </label>
+                }
+                <p class="hint">Changing a setting rebuilds the limiter and clears the log.</p>
+            </section>
+
+            <section class="card">
+                <h2>Per client</h2>
+                <p class="hint" style="margin-top:0">Each client (Ava, Ben) is tracked separately by key, with its own lock, so one busy client never slows or limits another. In the real middleware the key is the <code>X-Api-Key</code> header, falling back to the IP address.</p>
+            </section>
+        </div>
+    </div>
+</main>
+
+<footer class="foot">
+    <span>The real limiters from the <code>RateLimiting</code> library, running in your browser with Blazor WebAssembly.</span>
+    <a href="https://github.com/hamzamehmood46/api-rate-limiter-dotnet">Source on GitHub</a>
+</footer>
+
+@code {
+    private IReadOnlyList<Comparison>? _comparison;
+
+    private void Send(string client, int count) => L.Send(client, count);
+    private void Go(int seconds) => L.Advance(seconds);
+    private void Evict() => L.Evict();
+    private void Reset() { L.Build(); _comparison = null; }
+    private void Attack() => _comparison = L.BoundaryAttack();
+    private void Pick(Algo algo) { L.Algorithm = algo; L.Build(); }
+
+    private void Set(Action<int> assign, ChangeEventArgs e)
+    {
+        assign(int.Parse(e.Value?.ToString() ?? "0"));
+        L.Build();
+        _comparison = null;
+    }
+
+    private string Describe() => L.Algorithm switch
+    {
+        Algo.TokenBucket => "A bucket holds up to the capacity and refills at a steady rate; each request spends a token. Allows short bursts while enforcing the long-run average.",
+        Algo.SlidingWindow => "At most the limit in ANY window of the given length. Strict, and cannot be gamed at window boundaries, but remembers one timestamp per request.",
+        _ => "The count resets on the window boundary. Simple, but a client can send a full quota just before and just after the boundary. Not part of the library; shown for comparison.",
+    };
+}

@@ -11,6 +11,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{35FF1905
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RateLimiting.Tests", "tests\RateLimiting.Tests\RateLimiting.Tests.csproj", "{429768F3-82BF-42BA-8F6E-56C5666F9225}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RateLimiting.Playground", "src\RateLimiting.Playground\RateLimiting.Playground.csproj", "{F5801E26-5783-41A8-8483-F5B0C70DFDB4}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -28,9 +30,14 @@ Global
 		{429768F3-82BF-42BA-8F6E-56C5666F9225}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{429768F3-82BF-42BA-8F6E-56C5666F9225}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{429768F3-82BF-42BA-8F6E-56C5666F9225}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F5801E26-5783-41A8-8483-F5B0C70DFDB4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F5801E26-5783-41A8-8483-F5B0C70DFDB4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F5801E26-5783-41A8-8483-F5B0C70DFDB4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F5801E26-5783-41A8-8483-F5B0C70DFDB4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{A7714B1B-2727-4F54-B30B-A0C82C0F5BA9} = {075463EE-5D75-4F93-8786-42590839C9A1}
 		{429768F3-82BF-42BA-8F6E-56C5666F9225} = {35FF1905-D6E2-42FC-A489-F366ABA260BE}
+		{F5801E26-5783-41A8-8483-F5B0C70DFDB4} = {075463EE-5D75-4F93-8786-42590839C9A1}
 	EndGlobalSection
 EndGlobal
